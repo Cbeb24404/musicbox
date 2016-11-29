@@ -1,6 +1,7 @@
 from tkinter import *
-from mutagen.mp3 import MP3
+from mutagen import File
 from pygame import mixer
+from PIL import Image, ImageTk
 import os, time
 
 class myProg_tk(Tk):
@@ -14,8 +15,8 @@ class myProg_tk(Tk):
         self.root = self
         self.pause = False
 
-        self.root.bind('<Escape>', lambda e: self.closeSafely())
-        self.root.protocol("WM_DELETE_WINDOW", self.closeSafely())
+        self.root.bind('<Escape>', lambda e: self.root.iconify())
+        self.root.protocol("WM_DELETE_WINDOW", self.root.iconify())
         
         self.grid()
         self.label = Label(self, text = 'Queue Song (Hit Enter)')
@@ -33,18 +34,39 @@ class myProg_tk(Tk):
                             variable = self.volLevel, command = self.checkVol)
         self.volume.set(1)
         self.volume.grid(column = 2, row = 0)
-
         self.pause = Button(self, text = 'Pause', command = self.pauseSong)
-        self.pause.grid(column = 0, row = 2, sticky = 'NW')
+        self.pause.grid(column = 3, row = 2, sticky = 'E')
 
         self.grid_columnconfigure(0, weight = 1)
         self.resizable(False, False)
+        self.artwork = []
+        self.artworkNo = 0
+        self.currentImage = Image.open('albumArt.jpg')
+        self.currentImage = self.currentImage.resize((150, 150), Image.ANTIALIAS)
+        self.currentImage = ImageTk.PhotoImage(self.currentImage)
+        self.imageDisplayed = Label(self, image=self.currentImage)
+        self.imageDisplayed.grid(column = 3, row = 0, sticky = 'NE')
+
+    def getArtwork(self, location):
+        file = File(location)
+        try:
+            artwork = file.tags['APIC:'].data
+            self.artwork.append(artwork)
+        except KeyError:
+            artwork = 'albumArt.jpg'
+            self.artwork.append(artwork)
+
+    def updateAlbum(self):
+        self.artworkNo += 1
+        self.currentImage = Image.open(self.artwork[self.artworkNo])
+        self.currentImage = ImageTk.PhotoImage(self.currentImage)
 
     def QueueSong (self, event):
         songName = self.entryVar.get()
         self.entryVar.set('')
         dirLoc = os.path.dirname(os.path.abspath(__file__))
         path = dirLoc + "/songs/" + songName + ".mp3"
+        self.getArtwork(path)
         if (mixer.music.get_busy() == False):
             mixer.music.load(path)
             mixer.music.play()
@@ -72,10 +94,17 @@ def onClose(whileLooping):
 mixer.init()
 app = myProg_tk(None)
 app.title('Music Box')
+playedOnce = False
 while (app.exists):
     Tk.update_idletasks(app)
     Tk.update(app)
-    
+    if mixer.music.get_busy() == True:
+        playedOnce = True
+    if playedOnce == True:
+        if mixer.music.get_busy() == False:
+            app.updateAlbum()
+            time.sleep(0.1)
+
 
 mixer.music.stop()
 mixer.quit()
